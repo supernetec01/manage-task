@@ -7,7 +7,7 @@ Website dùng thử bằng tiếng Việt cho đội marketing, kinh doanh và t
 Yêu cầu Python 3, không cần cài dependencies:
 
 ```sh
-cd /workspace/manage-task
+cd manage-task
 ./start.sh
 ```
 
@@ -39,3 +39,25 @@ Trên chính máy chủ, mở `http://localhost:5001`. Máy khác cùng mạng m
 Có thể thay cổng bằng `PORT=5002 ./start.sh`. Máy chủ chỉ phục vụ các tệp giao diện đã cho phép, không công khai Git metadata hoặc danh sách thư mục. Đây là máy chủ dùng thử trong mạng tin cậy, chưa có TLS hay xác thực.
 
 Chạy trên mạng nội bộ không tự tạo đồng bộ dữ liệu: mỗi trình duyệt vẫn có bộ dữ liệu riêng. Để dùng chung task thực tế giữa nhân viên cần backend và cơ sở dữ liệu.
+
+## Windows
+
+Trong PowerShell hoặc CMD, chuyển vào thư mục đã tải về và chạy:
+
+```powershell
+cd manage-task
+py -3 server.py --port 5001
+```
+
+Hoặc nhấp đúp `start.bat`. Cần cài Python 3 trước; nếu `py` không có nhưng `python --version` báo Python 3, dùng `python server.py --port 5001`.
+
+Giữ cửa sổ terminal đang chạy, rồi mở http://localhost:5001 trên **chính máy đó**. `./start.sh` dành cho macOS/Linux, không phải lệnh PowerShell mặc định. Đường dẫn `/workspace/manage-task` chỉ tồn tại trong môi trường cloud.
+
+## Khắc phục lỗi khởi động
+
+- `python/py not found`: cài Python 3, mở lại terminal rồi thử lại.
+- `Address already in use`, `WinError 10048`: cổng 5001 đang có chương trình khác. Chỉ dừng tiến trình bạn biết, hoặc chạy `python server.py --port 5002` rồi mở http://localhost:5002.
+- `can't open file server.py`: chuyển vào thư mục có tệp `server.py` trước khi chạy.
+- `Connection refused`: xác nhận terminal hiện thông báo `Super Net listening` và chưa bị đóng.
+- Máy chủ mở được nhưng điện thoại/máy khác không mở được: dùng IP LAN thật của máy chủ thay `localhost`, cùng mạng và cho phép TCP 5001 trong tường lửa cho mạng Private. Không tắt toàn bộ tường lửa.
+- Truy cập cloud: `localhost` trên máy cá nhân không trỏ tới máy cloud. Để chạy nội bộ, tải repository và khởi động trên máy nội bộ như hướng dẫn trên.
