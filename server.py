@@ -13,7 +13,7 @@ import sys
 from http import cookies
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, unquote, urlsplit
+from urllib.parse import parse_qs, quote, unquote, urlsplit
 
 import backend
 
@@ -88,15 +88,15 @@ class Handler(SimpleHTTPRequestHandler):
             except ValueError:
                 raise backend.APIError(403, "Nguồn yêu cầu không hợp lệ.")
 
-    def parse_body(self):
+    def parse_body(self, limit=BODY_LIMIT):
         if self.headers.get("Transfer-Encoding"):
             raise backend.APIError(400, "Không hỗ trợ kiểu truyền dữ liệu này.")
         try:
             length = int(self.headers.get("Content-Length", "0"))
         except ValueError:
             raise backend.APIError(400, "Độ dài yêu cầu không hợp lệ.")
-        if not 0 < length <= BODY_LIMIT:
-            raise backend.APIError(413 if length > BODY_LIMIT else 400, "Dữ liệu yêu cầu trống hoặc quá lớn.")
+        if not 0 < length <= limit:
+            raise backend.APIError(413 if length > limit else 400, "Dữ liệu yêu cầu trống hoặc quá lớn.")
         if self.headers.get_content_type() != "application/json":
             raise backend.APIError(415, "Vui lòng gửi dữ liệu JSON.")
         try:
@@ -116,7 +116,11 @@ class Handler(SimpleHTTPRequestHandler):
                 return
             if method != "GET":
                 self.validate_origin()
-                data = self.parse_body()
+                if path not in {"/api/login", "/api/setup"}:
+                    _, early_csrf = backend.authenticate(self.token())
+                    if not hmac.compare_digest(self.headers.get("X-CSRF-Token", "").encode(), early_csrf.encode()):
+                        raise backend.APIError(403, "Phiên xác thực không hợp lệ. Hãy tải lại trang.")
+                data = self.parse_body(7_100_000 if path == "/api/uploads" else BODY_LIMIT)
             else:
                 data = None
             if method == "POST" and path == "/api/setup":
@@ -155,6 +159,20 @@ class Handler(SimpleHTTPRequestHandler):
                 return
             elif method == "PATCH" and re.fullmatch(r"/api/users/\d{1,18}", path):
                 result = backend.patch_user(user, int(path.rsplit("/", 1)[1]), data)
+            elif method == "POST" and path == "/api/uploads":
+                self.send_json(backend.upload_file(user, data), 201)
+                return
+            elif method == "GET" and re.fullmatch(r"/api/files/[a-f0-9]{32}", path):
+                name, content = backend.download_file(user, path.rsplit("/", 1)[1])
+                self.send_response(200)
+                self.send_header("Content-Type", "application/octet-stream")
+                self.send_header("Content-Disposition", "attachment; filename=download; filename*=UTF-8''" + quote(name, safe=""))
+                self.send_header("Content-Length", str(len(content)))
+                self.end_headers()
+                self.wfile.write(content)
+                return
+            elif method == "POST" and re.fullmatch(r"/api/tasks/\d{1,18}/updates", path):
+                result = backend.update_task(user, int(path.split("/")[-2]), data)
             elif method == "POST" and path == "/api/tasks":
                 self.send_json(backend.create_task(user, data), 201)
                 return

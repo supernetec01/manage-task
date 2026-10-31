@@ -178,7 +178,7 @@ class WorkspaceAPI(unittest.TestCase):
         code, _ = other.request('PATCH', f"/api/tasks/{task['id']}", {'version': task['version'], 'nextStep': 'unauthorized'})
         self.assertIn(code, (403, 404))
         code, _ = own.request('POST', '/api/tasks', {'title': 'Self assign'})
-        self.assertEqual(code, 403)
+        self.assertEqual(code, 400)
         code, _ = own.request('PATCH', f"/api/tasks/{task['id']}", {'version': task['version'], 'ownerId': outsider['id']})
         self.assertEqual(code, 403)
 
@@ -353,7 +353,178 @@ class WorkspaceAPI(unittest.TestCase):
         self.assertEqual(revised['originalDue'], task['originalDue'])
         changes = {change['field']: change for change in revised['history'][0]['changes']}
         self.assertEqual(changes['due']['before'], task['due'])
-        self.assertEqual(changes['due']['after'], new_due)
+        self.assertEqual(changes['due']['after'][:10], new_due)
+
+    def quick_task(self, client, owner=None, **fields):
+        payload = {'title': 'Phân tích sản phẩm Baby Tattoo',
+                   'due': local_today().isoformat() + 'T17:00:00+07:00'}
+        if owner:
+            payload['ownerId'] = owner['id']
+        payload.update(fields)
+        code, task = client.request('POST', '/api/tasks', payload)
+        self.assertEqual(code, 201, task)
+        return task
+
+    def test_quick_task_needs_only_title_owner_deadline(self):
+        employee, emp = self.user()
+        task = self.quick_task(self.admin, employee)
+        for key in ['description', 'criteria', 'channel', 'nextStep', 'scriptUrl']:
+            self.assertEqual(task[key], '')
+        self.assertEqual(task['stages'], [])
+        self.assertEqual(task['priority'], 'normal')
+        self.assertIsNone(task['estimatedHours'])
+        self.assertEqual(task['status'], 'pending')
+        self.assertIsNotNone(task['assignedAt'])
+        code, error = self.admin.request('POST', '/api/tasks', {'title': 'No deadline', 'ownerId': employee['id']})
+        self.assertEqual(code, 400, error)
+        url = f"/api/tasks/{task['id']}/action"
+        code, started = emp.request('POST', url, {'action': 'start', 'version': task['version']})
+        self.assertEqual(code, 200, started)
+        self.assertTrue(started['receivedAt'])
+        code, submitted = emp.request('POST', url, {'action': 'submit', 'version': started['version'], 'resultNote': 'Phân tích: nhóm khách hàng chính và 3 đề xuất nội dung.'})
+        self.assertEqual(code, 200, submitted)
+        self.assertTrue(submitted['submittedAt'])
+        self.assertEqual(submitted['stages'], [])
+        code, approved = self.admin.request('POST', url, {'action': 'approve', 'version': submitted['version']})
+        self.assertEqual(code, 200, approved)
+        self.assertTrue(approved['approvedAt'])
+        self.assertEqual(approved['status'], 'done')
+
+    def test_draft_is_private_undated_and_not_reported_until_assignment(self):
+        employee, emp = self.user()
+        outsider, other = self.user()
+        task = self.quick_task(emp, title='Bản nháp cá nhân', due='', draft=True)
+        self.assertEqual(task['status'], 'draft')
+        self.assertEqual(task['due'], '')
+        self.assertIsNone(task['assignedAt'])
+        self.assertIsNone(self.get_task(other, task['id']))
+        summary = emp.request('GET', '/api/report-summary')[1]
+        self.assertFalse(any(t['id'] == task['id'] for t in summary['tasks']))
+        url = f"/api/tasks/{task['id']}"
+        self.assertEqual(emp.request('POST', url + '/action', {'action': 'assign', 'version': task['version']})[0], 400)
+        code, updated = emp.request('PATCH', url, {'version': task['version'], 'due': local_today().isoformat() + 'T16:30:00+07:00'})
+        self.assertEqual(code, 200, updated)
+        code, assigned = emp.request('POST', url + '/action', {'action': 'assign', 'version': updated['version']})
+        self.assertEqual(code, 200, assigned)
+        self.assertEqual(assigned['status'], 'pending')
+        self.assertTrue(assigned['assignedAt'])
+        self.assertNotEqual(assigned['reviewerId'], employee['id'])
+
+    def test_self_created_task_uses_supervisor_and_cannot_assign_other_people(self):
+        supervisor, mgr = self.user('manager')
+        employee, emp = self.user()
+        outsider, _ = self.user()
+        code, _ = self.admin.request('PATCH', f"/api/users/{employee['id']}", {'defaultReviewerId': supervisor['id']})
+        self.assertEqual(code, 200)
+        task = self.quick_task(emp)
+        self.assertEqual(task['ownerId'], employee['id'])
+        self.assertEqual(task['reviewerId'], supervisor['id'])
+        code, _ = emp.request('POST', '/api/tasks', {'title': 'Not allowed', 'ownerId': outsider['id'], 'due': local_today().isoformat()})
+        self.assertEqual(code, 403)
+        self.assertEqual(emp.request('POST', '/api/tasks', {'title': 'Self approve', 'due': local_today().isoformat(), 'reviewerId': employee['id']})[0], 403)
+        self.assertEqual(emp.request('POST', '/api/tasks', {'title': 'Other stages', 'due': local_today().isoformat(), 'stages': [{'key':'script','label':'Test','ownerId':outsider['id']}]})[0], 403)
+
+    def test_files_multiple_links_and_authorized_download(self):
+        import base64
+        owner, own = self.user()
+        stranger, other = self.user()
+        content = b'Internal product reference'
+        code, file = self.admin.request('POST', '/api/uploads', {'name': '../tham-khao.txt', 'content': base64.b64encode(content).decode()})
+        self.assertEqual(code, 201, file)
+        self.assertEqual(file['name'], 'tham-khao.txt')
+        self.assertEqual(other.request('GET', file['url'])[0], 403)
+        self.assertEqual(own.request('GET', file['url'])[0], 403)
+        task = self.quick_task(self.admin, owner, attachments=[file['id']], links=['https://example.com/product','https://example.com/brand'])
+        code, downloaded = own.request('GET', file['url'])
+        self.assertEqual(code, 200, downloaded)
+        self.assertEqual(downloaded, content.decode())
+        self.assertEqual(other.request('GET', file['url'])[0], 403)
+        self.assertEqual(other.request('POST', '/api/tasks', {'title': 'Steal attachment', 'due': local_today().isoformat(), 'attachments':[file['id']]})[0], 403)
+        self.assertEqual(own.request('POST', '/api/uploads', {'name': 'bad.txt', 'content': '!invalid base64!'})[0], 400)
+        self.assertEqual(own.request('POST', '/api/tasks', {'title':'Bad links','due':local_today().isoformat(),'links':['javascript:alert(1)']})[0], 400)
+        code, private = own.request('POST', '/api/uploads', {'name':'draft.txt','content':base64.b64encode(b'private').decode()})
+        self.assertEqual(code, 201)
+        draft = self.quick_task(own, due='', draft=True, attachments=[private['id']])
+        self.assertEqual(other.request('GET', private['url'])[0], 403)
+        # Result can be a file, without an artificial URL requirement.
+        started = own.request('POST', f"/api/tasks/{task['id']}/action", {'action':'start','version':task['version']})[1]
+        code, result_file = own.request('POST', '/api/uploads', {'name':'result.txt','content':base64.b64encode(b'Result').decode()})
+        self.assertEqual(code, 201)
+        code, result = own.request('POST', f"/api/tasks/{task['id']}/action", {'action':'submit','version':started['version'],'resultFiles':[result_file['id']]})
+        self.assertEqual(code, 200, result)
+
+    def test_deadline_is_checked_to_the_minute_in_reports(self):
+        employee, emp = self.user()
+        current = datetime.now(timezone(timedelta(hours=7)))
+        before = current.replace(hour=0, minute=0, second=0, microsecond=0)
+        after = current.replace(hour=23, minute=59, second=59, microsecond=0)
+        late = self.quick_task(self.admin, employee, title='Past deadline', due=before.isoformat())
+        upcoming = self.quick_task(self.admin, employee, title='Future deadline', due=after.isoformat())
+        code, summary = emp.request('GET','/api/report-summary?kind=daily&period='+local_today().isoformat())
+        self.assertEqual(code, 200)
+        self.assertEqual(summary['total'], 2)
+        self.assertEqual(summary['overdue'], 1)
+        self.assertIn('T00:00:', late['due'])
+        self.assertIn('T23:59:', upcoming['due'])
+
+    def test_short_progress_clarification_and_resolution(self):
+        owner, own = self.user()
+        task = self.quick_task(self.admin, owner)
+        url = f"/api/tasks/{task['id']}"
+        code, task = own.request('POST', url+'/updates', {'version':task['version'],'kind':'clarify','note':'Cần dùng bảng giá nào?'})
+        self.assertEqual(code, 200, task)
+        self.assertEqual(task['clarification'],'Cần dùng bảng giá nào?')
+        self.assertEqual(task['status'], 'pending')
+        task = own.request('POST', url+'/action', {'action':'start','version':task['version']})[1]
+        self.assertEqual(own.request('POST',url+'/action',{'action':'submit','version':task['version'],'resultNote':'Done'})[0],400)
+        code, task = own.request('POST', url+'/updates', {'version':task['version'],'kind':'progress','completed':'Đã nhận bảng giá mới','nextStep':'Phân tích đối thủ','resolveBlocker':True})
+        self.assertEqual(code, 200, task)
+        self.assertEqual(task['blocker'], '')
+        self.assertEqual(task['updates'][0]['completed'],'Đã nhận bảng giá mới')
+        summary = own.request('GET', '/api/report-summary')[1]
+        self.assertTrue(any(t['id']==task['id'] for t in summary['activityTasks']))
+
+    def test_optional_video_template_and_employee_proposal_need_manager_approval(self):
+        owner, own = self.user()
+        task = self.quick_task(self.admin, owner, template='video')
+        self.assertEqual([s['key'] for s in task['stages']], ['script','shoot','edit'])
+        task = self.quick_task(self.admin, owner)
+        url = f"/api/tasks/{task['id']}"
+        steps=[{'key':'research','label':'Nghiên cứu đối thủ','ownerId':owner['id'],'due':task['due'],'status':'todo','note':''}]
+        code, proposed = own.request('POST', url+'/action', {'action':'propose_plan','version':task['version'],'note':'Cần thêm bước nghiên cứu','stages':steps,'estimatedHours':6})
+        self.assertEqual(code, 200, proposed)
+        self.assertEqual(proposed['stages'], [])
+        self.assertEqual(own.request('POST',url+'/action',{'action':'accept_plan','version':proposed['version']})[0],403)
+        code, accepted = self.admin.request('POST',url+'/action',{'action':'accept_plan','version':proposed['version']})
+        self.assertEqual(code, 200, accepted)
+        self.assertEqual(accepted['stages'][0]['key'],'research')
+        self.assertIsNone(accepted['planProposal'])
+        self.assertEqual(accepted['estimatedHours'], 6)
+        code, proposed = own.request('POST',url+'/action',{'action':'propose_plan','version':accepted['version'],'note':'Giữ checklist và xem xét hạn','stages':steps})
+        self.assertEqual(code, 200, proposed)
+        updated_steps=copy.deepcopy(steps);updated_steps[0]['status']='done'
+        code, updated = own.request('PATCH',url,{'version':proposed['version'],'stages':updated_steps})
+        self.assertEqual(code, 200, updated)
+        self.assertEqual(self.admin.request('POST',url+'/action',{'action':'accept_plan','version':updated['version']})[0],409)
+
+    def test_legacy_tasks_survive_additive_upgrade_without_rewriting_snapshots(self):
+        import sqlite3
+        owner, own = self.user()
+        task = self.task(owner)
+        original_due = local_today().isoformat()
+        legacy = copy.deepcopy(task)
+        for key in ['createdById','attachments','links','resultFiles','resultLinks','resultNote','updates','template','planProposal','receivedAt','submittedAt','approvedAt']:
+            legacy.pop(key,None)
+        legacy['due']=legacy['originalDue']=original_due
+        for stage in legacy['stages']:
+            stage['due']=original_due
+        with sqlite3.connect(Path(self.temp.name)/'data'/'supernet.db') as con:
+            con.execute('UPDATE tasks SET payload=? WHERE id=?',(json.dumps(legacy),task['id']))
+        loaded=self.get_task(own, task['id'])
+        self.assertEqual(loaded['due'],original_due+'T23:59:59+07:00')
+        self.assertEqual(loaded['attachments'],[])
+        self.assertEqual(len(loaded['stages']),3)
+        self.assertEqual(loaded['template'],'video')
 
     def test_z_database_survives_server_restart(self):
         code, before = self.admin.request('GET', '/api/bootstrap')

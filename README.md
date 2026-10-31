@@ -48,11 +48,29 @@ Có thể đổi cổng bằng `py -3 server.py --port 5002` hoặc `PORT=5002 .
 - **Trưởng nhóm:** quản lý task Content Marketing, phân công từng khâu, duyệt bàn giao, xem và phản hồi báo cáo. Không được nâng quyền thành quản trị.
 - **Nhân viên Content / thực tập sinh:** xem việc mình phụ trách hoặc được giao một khâu; cập nhật tiến độ, minh chứng, vướng mắc và gửi báo cáo của bản thân.
 
-Mỗi nội dung có kênh, pillar, angle, series/chiến dịch, người chịu trách nhiệm, người duyệt, deadline và tiêu chí nghiệm thu. Ba khâu **Kịch bản → Quay → Dựng** có người phụ trách và tiến độ riêng. Nhân viên chỉ cập nhật khâu mình được giao; người quản lý điều phối toàn bộ.
+## Giao việc nhanh và triển khai sau
 
-Luồng công việc: **Chờ nhận → Đang làm → Chờ duyệt → Cần sửa / Đã nghiệm thu**. Nộp duyệt cần các khâu hoàn thành và link sản phẩm hợp lệ. Xuất bản được theo dõi riêng với lịch đăng và link bài, không đồng nhất “dựng xong” với “đã đăng”. Lịch sử thay đổi và hạn ban đầu được giữ lại.
+Ở Tổng quan, Việc của tôi, Tất cả nhiệm vụ và Lịch công việc đều dùng chung form **Tạo nhiệm vụ** gồm 5 mục:
 
-Báo cáo **ngày và tuần** tổng hợp công việc có liên quan trong kỳ, rồi người báo cáo bổ sung kết quả, vướng mắc và kế hoạch tiếp theo. Bản đã gửi giữ một snapshot dữ liệu tại thời điểm gửi; thay đổi task sau đó không âm thầm sửa bản báo cáo. Người quản lý xem và phản hồi báo cáo. Mật khẩu, mã phiên đăng nhập và mã CSRF không nằm trong dữ liệu xuất; tên đăng nhập được giữ để quản lý đối chiếu tài khoản.
+1. **Nhiệm vụ cần làm** — bắt buộc.
+2. **Người thực hiện** — bắt buộc; mặc định bản thân ở Việc của tôi, hoặc theo nhân viên đang được lọc khi quản lý giao việc.
+3. **Deadline** — ngày và giờ Việt Nam; bắt buộc khi giao việc, không bắt buộc khi lưu nháp.
+4. **Mô tả chi tiết** — tùy chọn, gộp yêu cầu, đầu ra và tiêu chí nghiệm thu.
+5. **Tài liệu liên quan** — tùy chọn, nhiều liên kết (mỗi dòng một link), chọn/kéo thả tệp hoặc dán ảnh.
+
+Phần **Tùy chọn thêm** mặc định thu gọn: chiến dịch, ưu tiên (Bình thường), người duyệt và mẫu triển khai. Kênh/Pillar/Angle/Series được bổ sung trong **Kế hoạch nội dung** ở chi tiết nhiệm vụ. Bước tiếp theo do người thực hiện cập nhật sau khi nhận việc. Giờ dự kiến không bắt buộc.
+
+**Lưu nháp** giữ nhiệm vụ riêng cho người tạo (và quản trị viên). Chưa giao cho nhân viên, không tính dashboard công việc đã giao, lịch hoặc báo cáo. Mở tab **Bản nháp** để bổ sung deadline rồi giao việc. Bản nháp cần có tên nhiệm vụ.
+
+Nhân viên và thực tập sinh được tự tạo nhiệm vụ cho bản thân; không tự giao cho người khác hoặc tự duyệt. Quản lý có thể chọn **Quản lý phụ trách** trong tài khoản từng người. Khi nhân viên tự tạo, người duyệt lấy theo thiết lập này; nếu chưa thiết lập hoặc quản lý đã bị khóa, chọn trưởng nhóm đang hoạt động, rồi mới đến quản trị. Với nhiệm vụ quản lý giao, mặc định người duyệt là người giao; có thể đổi trong tùy chọn.
+
+Luồng việc ngắn: **Nhận việc → Cập nhật tiến độ / Báo vướng mắc → Nộp kết quả → Đạt / Cần sửa**. Nhân viên có thể **Cần làm rõ** trước khi nhận. Tiến độ chỉ cần ghi đã làm gì và bước tiếp theo, không yêu cầu phần trăm. Kết quả bàn giao có thể là nội dung trả lời, tệp hoặc đường dẫn; không bắt buộc dùng link cho công việc có đầu ra là văn bản. Vướng mắc phải được xác nhận đã giải quyết trước khi nộp.
+
+Checkpoint không tự áp dụng cho mọi nhiệm vụ. Có thể chọn mẫu **Video: Kịch bản → Quay → Dựng** hoặc thêm checklist trong chi tiết. Quản lý sửa tên bước, người thực hiện, thời hạn; nhân viên chỉ sửa tiến độ/ghi chú của bước mình được giao. Nhân viên có thể đề xuất các bước hoặc deadline, nhưng chỉ có hiệu lực khi quản lý xác nhận. Khi tiến độ đã đổi sau đề xuất, cần đề xuất lại để tránh ghi đè. Duyệt và đăng bài theo dõi riêng, không đồng nhất “dựng xong” với “đã đăng”.
+
+Báo cáo **ngày/tuần** giữ riêng số nhiệm vụ đến hạn và danh sách nhiệm vụ có thao tác cập nhật của người báo cáo trong kỳ. Người báo cáo bổ sung nhận định, vướng mắc và kế hoạch tiếp theo; không suy ra chỉ số kinh doanh từ số việc. Bản gửi giữ snapshot tại thời điểm gửi, không thay đổi khi task thay đổi. Quản lý phản hồi báo cáo. Mật khẩu, mã phiên và mã CSRF không nằm trong dữ liệu xuất.
+
+Tài liệu tối đa **5 MB/tệp**, **10 tệp/phần** (hỗ trợ, kết quả hoặc cập nhật), **20 liên kết/phần**. Tệp lưu trong SQLite cùng dữ liệu, chỉ người có quyền xem nhiệm vụ mới tải được; tải xuống dạng attachment, không thực thi trong website. Tệp tải lên nhưng chưa gắn vào nhiệm vụ chỉ người tải được xem, tối đa 30 tệp chưa gắn; được dọn khi có lần upload tiếp theo sau 24 giờ. Nếu bỏ form, tệp chưa gắn không tự thành tài liệu công việc.
 
 ## Dữ liệu, sao lưu và nâng cấp
 
@@ -60,11 +78,12 @@ Báo cáo **ngày và tuần** tổng hợp công việc có liên quan trong k�
 - Trước khi nâng cấp hoặc sao lưu: dừng máy chủ bằng **Ctrl+C**, sao chép toàn bộ thư mục `data` đến nơi an toàn, rồi khởi động lại. Giữ file sao lưu như dữ liệu nội bộ có quyền truy cập hạn chế.
 - Khôi phục: dừng máy chủ, giữ một bản sao dữ liệu hiện tại, thay thư mục `data` bằng bản sao lưu tương thích, rồi khởi động lại. Không chạy hai máy chủ cùng quản lý một file dữ liệu trên ổ mạng.
 - Dữ liệu localStorage của bản demo cũ **không tự động chuyển** sang hệ thống dùng chung. Có thể xuất JSON từ bản demo để giữ lại; chưa có chức năng nhập bản JSON đó hoặc nhập Excel trực tiếp.
+- Bản nâng cấp giữ task và báo cáo đã có. Deadline cũ chỉ có ngày được hiểu là 23:59:59 ngày đó ở Việt Nam; các checkpoint cũ được giữ. Báo cáo đã chốt không bị viết lại.
 - Các tài khoản tạo mới bắt đầu với dữ liệu thật do người quản lý nhập; không tự đưa dữ liệu nhân viên từ file Excel vào hệ thống.
 
 ## Phạm vi hiện tại
 
-Tập trung Content Marketing: tài khoản, phân quyền máy chủ, task theo khâu, theo dõi xuất bản, báo cáo ngày/tuần, quản lý đội ngũ và xuất dữ liệu. Những vị trí khác, nhập Excel có rà soát, thư viện footage, gửi email nhắc hạn, tích hợp TikTok và chấm KPI tự động được triển khai sau.
+Tập trung Content Marketing: tài khoản, phân quyền máy chủ, nhiệm vụ chung, bản nháp, tài liệu và checklist tùy chọn, theo dõi xuất bản, báo cáo ngày/tuần, quản lý đội ngũ và xuất dữ liệu. Những vị trí khác, nhập Excel có rà soát, thư viện footage, gửi email nhắc hạn, tích hợp TikTok và chấm KPI tự động được triển khai sau.
 
 ## Kiểm tra
 
